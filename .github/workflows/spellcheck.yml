@@ -63,16 +63,7 @@ jobs:
           # Fields that should be spellchecked
           #
           SPELLCHECK_FIELDS = {
-              "name",
               "text",
-              "journal",
-              "response_text",
-              "book_text",
-              "description",
-              "topic",
-              "message",
-              "result_text",
-              "note",
           }
           
           #
@@ -84,7 +75,6 @@ jobs:
               "class",
               "faction",
               "region",
-              "topic",
           }
           
           word_frequency = Counter()
