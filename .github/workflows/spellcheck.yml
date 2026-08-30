@@ -11,7 +11,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
-          sparse-checkout: "00 Data Files"
+          sparse-checkout: "00 Data Files/Tamriel_Data.esm"
           sparse-checkout-cone-mode: false
 
       - name: Verify Tamriel_Data.esm exists
@@ -76,29 +76,12 @@ jobs:
           
           JSON_FILE = "Tamriel_Data.json"
           
+          #
+          # Types that contain player-visible text and should be spellchecked.
+          #
           PLAYER_FACING_RECORDS = {
               "Book",
               "DialogueInfo",
-              "DialogTopic",
-              "Journal",
-              "Npc",
-              "Creature",
-              "Weapon",
-              "Armor",
-              "Clothing",
-              "MiscItem",
-              "Ingredient",
-              "Apparatus",
-              "Alchemy",
-              "RepairItem",
-              "Probe",
-              "Lockpick",
-              "Cell",
-              "Region",
-              "Race",
-              "Class",
-              "Birthsign",
-              "Faction",
           }
           
           #
