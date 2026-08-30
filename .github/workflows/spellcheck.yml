@@ -13,10 +13,7 @@ jobs:
 
       - name: Verify Tamriel_Data.esm exists
         run: |
-          test -f Tamriel_Data.esm || {
-            echo "Tamriel_Data.esm not found in repository root"
-            exit 1
-          }
+          test -f "00 Data Files/Tamriel_Data.esm"
 
       - name: Install dependencies
         run: |
@@ -47,9 +44,9 @@ jobs:
       - name: Convert ESM to JSON
         run: |
           ./tes3conv/tes3conv \
-            Tamriel_Data.esm \
+            "00 Data Files/Tamriel_Data.esm" \
             Tamriel_Data.json
-
+            
       - name: Create spellcheck script
         run: |
           cat > spellcheck_json.py <<'PY'
