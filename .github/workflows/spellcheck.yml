@@ -54,46 +54,64 @@ jobs:
           import subprocess
           import tempfile
           from pathlib import Path
-
+          
           JSON_FILE = "Tamriel_Data.json"
-
+          
+          PLAYER_FACING_FIELDS = {
+              "name",
+              "text",
+              "journal",
+              "response_text",
+              "book_text",
+              "description",
+              "topic",
+              "message",
+              "result_text",
+              "note",
+          }
+          
           with open(JSON_FILE, encoding="utf-8") as f:
               data = json.load(f)
-
+          
           strings = []
-
-          def walk(obj, path=""):
+          
+          
+          def walk(obj, path="", key=None):
               if isinstance(obj, dict):
-                  for key, value in obj.items():
-                      next_path = f"{path}.{key}" if path else key
-                      walk(value, next_path)
-
+                  for k, v in obj.items():
+                      next_path = f"{path}.{k}" if path else k
+                      walk(v, next_path, k)
+          
               elif isinstance(obj, list):
-                  for index, value in enumerate(obj):
-                      walk(value, f"{path}[{index}]")
-
+                  for i, v in enumerate(obj):
+                      walk(v, f"{path}[{i}]", key)
+          
               elif isinstance(obj, str):
+                  if key not in PLAYER_FACING_FIELDS:
+                      return
+          
                   text = obj.strip()
-
+          
                   if len(text) < 3:
                       return
-
-                  strings.append((path, text))
-
+          
+                  strings.append((path, key, text))
+          
+          
           walk(data)
-
+          
           findings = []
-
-          for path, text in strings:
+          
+          for path, key, text in strings:
               with tempfile.NamedTemporaryFile(
                   mode="w",
                   suffix=".txt",
                   encoding="utf-8",
-                  delete=False
+                  delete=False,
               ) as tmp:
                   tmp.write(text)
                   filename = tmp.name
-
+          
               result = subprocess.run(
                   [
                       "cspell",
@@ -102,42 +120,57 @@ jobs:
                       filename,
                   ],
                   capture_output=True,
-                  text=True
+                  text=True,
               )
-
+          
               Path(filename).unlink(missing_ok=True)
-
+          
               if result.returncode != 0:
-                  findings.append({
-                      "path": path,
-                      "text": text,
-                      "output": result.stdout.strip()
-                  })
-
+                  findings.append(
+                      {
+                          "path": path,
+                          "field": key,
+                          "text": text,
+                          "output": result.stdout.strip(),
+                      }
+                  )
+          
           with open("spellcheck-report.md", "w", encoding="utf-8") as report:
               report.write("# Spellcheck Report\n\n")
-
+          
+              report.write("## Checked Fields\n\n")
+          
+              for field in sorted(PLAYER_FACING_FIELDS):
+                  report.write(f"- `{field}`\n")
+          
+              report.write("\n")
+          
               if not findings:
                   report.write("No spelling issues found.\n")
               else:
                   report.write(
-                      f"Found {len(findings)} strings containing possible spelling issues.\n\n"
+                      f"Found {len(findings)} entries containing possible spelling issues.\n\n"
                   )
-
+          
                   for item in findings:
                       report.write(f"## {item['path']}\n\n")
-
+          
+                      report.write(f"**Field:** `{item['field']}`\n\n")
+          
                       report.write("### Text\n\n")
                       report.write("```text\n")
                       report.write(item["text"][:5000])
                       report.write("\n```\n\n")
-
+          
                       report.write("### CSpell Output\n\n")
                       report.write("```\n")
                       report.write(item["output"])
                       report.write("\n```\n\n")
-
-          print(f"Found {len(findings)} entries with possible spelling issues.")
+          
+          print(
+              f"Checked {len(strings)} player-facing strings. "
+              f"Found {len(findings)} entries with potential spelling issues."
+          )
           PY
 
       - name: Run spellcheck
