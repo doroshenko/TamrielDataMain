@@ -11,7 +11,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
-          sparse-checkout: "00 Data Files/Tamriel_Data.esm"
+          sparse-checkout: |
+            "00 Data Files/Tamriel_Data.esm"
+            "00 Data Files/Tamriel_Data-dictionary.txt"
           sparse-checkout-cone-mode: false
 
       - name: Verify Tamriel_Data.esm exists
@@ -54,12 +56,17 @@ jobs:
         run: |
           cat > cspell.json <<'EOF'
           {
-            "dictionaries": ["tamriel-dictionary"],
+            "dictionaries": ["persistent-dictionary", "temp-dictionary"],
 
             "dictionaryDefinitions": [
                   {
-                      "name": "tamriel-dictionary",
-                      "path": "tamriel-dictionary.txt",
+                      "name": "temp-dictionary",
+                      "path": "temp-dictionary.txt",
+                      "addWords": true
+                  },
+                  {
+                      "name": "persistent-dictionary",
+                      "path": "00 Data Files/Tamriel_Data-dictionary.txt",
                       "addWords": true
                   }
               ]
@@ -115,7 +122,7 @@ jobs:
           
           
           def tokenize(text):
-              return re.findall(r"[A-Za-z][A-Za-z'-]*", text)
+              return re.findall(r"[A-Za-z0-9_À-ÿ]+", text)
           
           
           def collect_dictionary_words(text):
@@ -213,7 +220,7 @@ jobs:
               if count >= FREQUENCY_THRESHOLD:
                   dictionary_words.add(word)
           
-          dictionary_file = "tamriel-dictionary.txt"
+          dictionary_file = "temp-dictionary.txt"
           
           with open(dictionary_file, "w", encoding="utf-8") as f:
               for word in sorted(dictionary_words):
