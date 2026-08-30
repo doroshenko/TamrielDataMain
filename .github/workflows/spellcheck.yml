@@ -53,21 +53,44 @@ jobs:
           import json
           import re
           import subprocess
-          import tempfile
           from collections import Counter
-          from pathlib import Path
           
           JSON_FILE = "Tamriel_Data.json"
           
+          PLAYER_FACING_RECORDS = {
+              "Book",
+              "DialogueInfo",
+              "DialogTopic",
+              "Journal",
+              "Npc",
+              "Creature",
+              "Weapon",
+              "Armor",
+              "Clothing",
+              "MiscItem",
+              "Ingredient",
+              "Apparatus",
+              "Alchemy",
+              "RepairItem",
+              "Probe",
+              "Lockpick",
+              "Cell",
+              "Region",
+              "Race",
+              "Class",
+              "Birthsign",
+              "Faction",
+          }
+          
           #
-          # Fields that should be spellchecked
+          # Fields that contain player-visible text and should be spellchecked.
           #
           SPELLCHECK_FIELDS = {
               "text",
           }
           
           #
-          # Fields used for dictionary generation
+          # Fields used to build a custom lore dictionary.
           #
           DICTIONARY_FIELDS = {
               "name",
@@ -75,11 +98,17 @@ jobs:
               "class",
               "faction",
               "region",
+              "topic",
           }
+          
+          #
+          # Words appearing at least this many times are automatically
+          # added to the custom dictionary.
+          #
+          FREQUENCY_THRESHOLD = 3
           
           word_frequency = Counter()
           dictionary_words = set()
-          
           spellcheck_strings = []
           
           
@@ -94,15 +123,34 @@ jobs:
                       word_frequency[word] += 1
           
           
-          def walk(obj, path="", key=None):
+          def walk(obj, path="", key=None, record_type=None):
               if isinstance(obj, dict):
+                  current_record_type = record_type
+          
+                  #
+                  # tes3conv records usually expose their type.
+                  #
+                  if "type" in obj and isinstance(obj["type"], str):
+                      current_record_type = obj["type"]
+          
                   for k, v in obj.items():
                       next_path = f"{path}.{k}" if path else k
-                      walk(v, next_path, k)
+          
+                      walk(
+                          v,
+                          next_path,
+                          k,
+                          current_record_type,
+                      )
           
               elif isinstance(obj, list):
                   for i, v in enumerate(obj):
-                      walk(v, f"{path}[{i}]", key)
+                      walk(
+                          v,
+                          f"{path}[{i}]",
+                          key,
+                          record_type,
+                      )
           
               elif isinstance(obj, str):
                   text = obj.strip()
@@ -111,16 +159,27 @@ jobs:
                       return
           
                   #
-                  # Build dictionary
+                  # Build dictionary from lore/proper-name fields.
                   #
                   if key in DICTIONARY_FIELDS:
                       collect_dictionary_words(text)
           
                   #
-                  # Gather strings to spellcheck
+                  # Only spellcheck player-visible fields belonging
+                  # to player-facing records.
                   #
-                  if key in SPELLCHECK_FIELDS:
-                      spellcheck_strings.append((path, key, text))
+                  if (
+                      record_type in PLAYER_FACING_RECORDS
+                      and key in SPELLCHECK_FIELDS
+                  ):
+                      spellcheck_strings.append(
+                          {
+                              "path": path,
+                              "record_type": record_type,
+                              "field": key,
+                              "text": text,
+                          }
+                      )
           
           
           print("Loading JSON...")
@@ -131,24 +190,19 @@ jobs:
           walk(data)
           
           #
-          # Add frequently-occurring words from ALL checked text
+          # Learn common words from the spellchecked text itself.
           #
-          for _, _, text in spellcheck_strings:
-              for word in tokenize(text):
+          for item in spellcheck_strings:
+              for word in tokenize(item["text"]):
                   if len(word) >= 3:
                       word_frequency[word] += 1
           
           #
-          # Whitelist common lore words that appear repeatedly.
-          # A typo that occurs only once won't be added.
+          # Add frequent words to dictionary.
           #
-          FREQUENCY_THRESHOLD = 5
-          
           for word, count in word_frequency.items():
               if count >= FREQUENCY_THRESHOLD:
                   dictionary_words.add(word)
-          
-          print(f"Generated dictionary with {len(dictionary_words)} words")
           
           dictionary_file = "tamriel-dictionary.txt"
           
@@ -156,42 +210,112 @@ jobs:
               for word in sorted(dictionary_words):
                   f.write(word + "\n")
           
+          print(
+              f"Prepared {len(spellcheck_strings)} strings and "
+              f"{len(dictionary_words)} dictionary words"
+          )
+          
+          #
+          # Build a single payload for cspell.
+          #
+          payload_lines = []
+          line_map = {}
+          
+          current_line = 1
+          
+          for item in spellcheck_strings:
+              start_line = current_line
+          
+              text_lines = item["text"].splitlines()
+          
+              if not text_lines:
+                  text_lines = [""]
+          
+              payload_lines.extend(text_lines)
+          
+              current_line += len(text_lines)
+          
+              end_line = current_line - 1
+          
+              line_map[(start_line, end_line)] = item
+          
+              #
+              # Separator line between entries.
+              #
+              payload_lines.append("")
+              current_line += 1
+          
+          payload = "\n".join(payload_lines)
+          
+          with open("payload.txt", "w", encoding="utf-8") as f:
+              f.write(payload)
+          
+          print("Running cspell...")
+          
+          result = subprocess.run(
+              [
+                  "cspell",
+                  "--no-progress",
+                  "--no-summary",
+                  "payload.txt",
+              ],
+              capture_output=True,
+              text=True,
+          )
+          
+          print(f"Line {result}")
+          
+          #
+          # Parse cspell output.
+          #
+          #
+          # Expected formats include:
+          # stdin:123:5 - Unknown word (Foobar)
+          # <stdin>:123:5 - Unknown word (Foobar)
+          #
+          line_pattern = re.compile(
+              r"(?:stdin|<stdin>|payload.txt):(\d+):(\d+).*?Unknown word\s+\(([^)]+)\)",
+              re.IGNORECASE,
+          )
+          
+          issues_by_path = {}
+          
+          for line in result.stdout.splitlines():
+              match = line_pattern.search(line)
+          
+              print(f"Line {line}")
+          
+              if not match:
+                  continue
+          
+              line_number = int(match.group(1))
+              unknown_word = match.group(3)
+          
+              for (start, end), metadata in line_map.items():
+                  if start <= line_number <= end:
+                      path = metadata["path"]
+          
+                      if path not in issues_by_path:
+                          issues_by_path[path] = {
+                              "field": metadata["field"],
+                              "text": metadata["text"],
+                              "words": set(),
+                          }
+          
+                      issues_by_path[path]["words"].add(unknown_word)
+                      break
+          
           findings = []
           
-          for path, field, text in spellcheck_strings:
-              with tempfile.NamedTemporaryFile(
-                  mode="w",
-                  encoding="utf-8",
-                  suffix=".txt",
-                  delete=False,
-              ) as tmp:
-                  tmp.write(text)
-                  tmp_filename = tmp.name
-          
-              result = subprocess.run(
-                  [
-                      "cspell",
-                      "--no-progress",
-                      "--no-summary",
-                      "--words",
-                      dictionary_file,
-                      tmp_filename,
-                  ],
-                  capture_output=True,
-                  text=True,
+          for path, info in sorted(issues_by_path.items()):
+              findings.append(
+                  {
+                      "path": path,
+                      "field": info["field"],
+                      "text": info["text"],
+                      "words": sorted(info["words"]),
+                  }
               )
-          
-              Path(tmp_filename).unlink(missing_ok=True)
-          
-              if result.returncode != 0:
-                  findings.append(
-                      {
-                          "path": path,
-                          "field": field,
-                          "text": text,
-                          "output": result.stdout.strip(),
-                      }
-                  )
           
           with open("spellcheck-report.md", "w", encoding="utf-8") as report:
               report.write("# Tamriel Data Spellcheck Report\n\n")
@@ -201,7 +325,8 @@ jobs:
               )
           
               report.write(
-                  f"Generated custom dictionary with **{len(dictionary_words)}** lore-specific words.\n\n"
+                  f"Generated custom dictionary with "
+                  f"**{len(dictionary_words)}** words.\n\n"
               )
           
               report.write("## Checked Fields\n\n")
@@ -223,19 +348,20 @@ jobs:
                           f"**Field:** `{item['field']}`\n\n"
                       )
           
-                      report.write("#### Text\n\n")
+                      report.write("**Unknown words:**\n\n")
+          
+                      for word in item["words"]:
+                          report.write(f"- `{word}`\n")
+          
+                      report.write("\n")
+          
                       report.write("```text\n")
                       report.write(item["text"][:5000])
                       report.write("\n```\n\n")
           
-                      report.write("#### CSpell Output\n\n")
-                      report.write("```\n")
-                      report.write(item["output"])
-                      report.write("\n```\n\n")
-          
           print(
               f"Spellchecked {len(spellcheck_strings)} strings. "
-              f"Found {len(findings)} possible issues."
+              f"Found {len(findings)} entries with possible spelling issues."
           )
           PY
 
