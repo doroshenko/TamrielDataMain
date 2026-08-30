@@ -74,12 +74,6 @@ jobs:
               "text"
           }
 
-          #
-          # Words appearing at least this many times are automatically
-          # added to the custom dictionary.
-          #
-          FREQUENCY_THRESHOLD = 1
-
           word_frequency = Counter()
           dictionary_words = set()
           
