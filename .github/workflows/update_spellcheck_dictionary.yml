@@ -24,7 +24,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y jq unzip
-          npm install -g cspell
 
       - name: Download latest tes3conv
         run: |
@@ -80,7 +79,8 @@ jobs:
           # added to the custom dictionary.
           #
           FREQUENCY_THRESHOLD = 1
-          
+
+          word_frequency = Counter()
           dictionary_words = set()
           
           def tokenize(text):
@@ -147,21 +147,6 @@ jobs:
               data = json.load(f)
           
           walk(data)
-          
-          #
-          # Learn common words from the spellchecked text itself.
-          #
-          for item in spellcheck_strings:
-              for word in tokenize(item["text"]):
-                  if len(word) >= 3:
-                      word_frequency[word] += 1
-          
-          #
-          # Add frequent words to dictionary.
-          #
-          for word, count in word_frequency.items():
-              if count >= FREQUENCY_THRESHOLD:
-                  dictionary_words.add(word)
           
           dictionary_file = "Tamriel_Data-dictionary.txt"
           
