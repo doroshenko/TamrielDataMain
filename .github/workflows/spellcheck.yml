@@ -72,17 +72,19 @@ jobs:
               ]
           }
           EOF
-            
+
       - name: Create spellcheck script
         run: |
           cat > spellcheck_json.py <<'PY'
           import json
           import re
           import subprocess
+          import sys
           from collections import Counter
-          
+          from unicodedata import category
+
           JSON_FILE = "Tamriel_Data.json"
-          
+
           #
           # Types that contain player-visible text and should be spellchecked.
           #
@@ -90,14 +92,14 @@ jobs:
               "Book",
               "DialogueInfo",
           }
-          
+
           #
           # Fields that contain player-visible text and should be spellchecked.
           #
           SPELLCHECK_FIELDS = {
               "text",
           }
-          
+
           #
           # Fields used to build a custom lore dictionary.
           #
@@ -108,47 +110,48 @@ jobs:
               "faction",
               "region",
               "topic",
+          # "text"
           }
-          
+
           #
           # Words appearing at least this many times are automatically
           # added to the custom dictionary.
           #
           FREQUENCY_THRESHOLD = 5
-          
+
           word_frequency = Counter()
           dictionary_words = set()
           spellcheck_strings = []
-          
-          
+
+
           def tokenize(text):
               return re.findall(r"[A-Za-z0-9_À-ÿ]+", text)
-          
-          
+
+
           def collect_dictionary_words(text):
               for word in tokenize(text):
                   if len(word) >= 3:
                       dictionary_words.add(word)
                       word_frequency[word] += 1
-          
-          
+
+
           def walk(obj, path="", key=None, record_type=None, record_id=None):
               if isinstance(obj, dict):
                   current_record_type = record_type
                   current_record_id = record_id
-          
+
                   #
                   # tes3conv records have type and id.
                   #
                   if "type" in obj and isinstance(obj["type"], str):
                       current_record_type = obj["type"]
-          
+
                   if "id" in obj and isinstance(obj["id"], str):
                       current_record_id = obj["id"]
-          
+
                   for k, v in obj.items():
                       next_path = f"{path}.{k}" if path else k
-          
+
                       walk(
                           v,
                           next_path,
@@ -156,7 +159,7 @@ jobs:
                           current_record_type,
                           current_record_id,
                       )
-          
+
               elif isinstance(obj, list):
                   for i, v in enumerate(obj):
                       walk(
@@ -166,19 +169,19 @@ jobs:
                           record_type,
                           record_id,
                       )
-          
+
               elif isinstance(obj, str):
                   text = obj.strip()
-          
+
                   if len(text) < 3:
                       return
-          
+
                   #
                   # Build dictionary from lore/proper-name fields.
                   #
                   if key in DICTIONARY_FIELDS:
                       collect_dictionary_words(text)
-          
+
                   #
                   # Only spellcheck player-visible fields belonging
                   # to player-facing records.
@@ -196,15 +199,15 @@ jobs:
                               "text": text,
                           }
                       )
-          
-          
+
+
           print("Loading JSON...")
-          
+
           with open(JSON_FILE, encoding="utf-8") as f:
               data = json.load(f)
-          
+
           walk(data)
-          
+
           #
           # Learn common words from the spellchecked text itself.
           #
@@ -212,62 +215,62 @@ jobs:
               for word in tokenize(item["text"]):
                   if len(word) >= 3:
                       word_frequency[word] += 1
-          
+
           #
           # Add frequent words to dictionary.
           #
           for word, count in word_frequency.items():
               if count >= FREQUENCY_THRESHOLD:
                   dictionary_words.add(word)
-          
+
           dictionary_file = "temp-dictionary.txt"
-          
+
           with open(dictionary_file, "w", encoding="utf-8") as f:
               for word in sorted(dictionary_words):
                   f.write(word + "\n")
-          
+
           print(
               f"Prepared {len(spellcheck_strings)} strings and "
               f"{len(dictionary_words)} dictionary words"
           )
-          
+
           #
           # Build a single payload for cspell.
           #
           payload_lines = []
           line_map = {}
-          
+
           current_line = 1
-          
+
           for item in spellcheck_strings:
               start_line = current_line
-          
+
               text_lines = item["text"].splitlines()
-          
+
               if not text_lines:
                   text_lines = [""]
-          
+
               payload_lines.extend(text_lines)
-          
+
               current_line += len(text_lines)
-          
+
               end_line = current_line - 1
-          
+
               line_map[(start_line, end_line)] = item
-          
+
               #
               # Separator line between entries.
               #
               payload_lines.append("")
               current_line += 1
-          
+
           payload = "\n".join(payload_lines)
-          
+
           with open("payload.txt", "w", encoding="utf-8") as f:
               f.write(payload)
-          
+
           print("Running cspell...")
-          
+
           result = subprocess.run(
               [
                   "cspell",
@@ -278,9 +281,7 @@ jobs:
               capture_output=True,
               text=True,
           )
-          
-          print(f"Line {result}")
-          
+
           #
           # Parse cspell output.
           #
@@ -288,42 +289,70 @@ jobs:
           # Expected formats include:
           # stdin:123:5 - Unknown word (Foobar)
           # <stdin>:123:5 - Unknown word (Foobar)
+          # payload.txt:123:5 - Unknown word (Foobar)
           #
           line_pattern = re.compile(
               r"(?:stdin|<stdin>|payload.txt):(\d+):(\d+).*?Unknown word\s+\(([^)]+)\)",
               re.IGNORECASE,
           )
-          
+
           issues_by_path = {}
-          
+
           for line in result.stdout.splitlines():
               match = line_pattern.search(line)
-          
-              print(f"Line {line}")
-          
+
               if not match:
                   continue
-          
+
               line_number = int(match.group(1))
               unknown_word = match.group(3)
-          
+
               for (start, end), metadata in line_map.items():
                   if start <= line_number <= end:
                       path = metadata["path"]
-          
+
                       if path not in issues_by_path:
                           issues_by_path[path] = {
                               "record_id": metadata["record_id"],
                               "field": metadata["field"],
                               "text": metadata["text"],
                               "words": set(),
+                              "punctuation": set(),
                           }
-          
+
                       issues_by_path[path]["words"].add(unknown_word)
                       break
-          
+
+          print("Checking punctuation...")
+
+          #
+          # Get a list of unicode non-ascii punctuation characters
+          #
+          codepoints = range(sys.maxunicode + 1)
+          punctuation = {c for i in codepoints if category(c := chr(i)).startswith("P") and not c.isascii()}
+          # print (f"Punctuation characters: `{punctuation}`")
+
+
+          for (start, end), metadata in line_map.items():
+              found_elements = [element for element in punctuation if element in metadata["text"]]
+                  
+              if found_elements:
+                  path = metadata["path"]
+
+                  if path not in issues_by_path:
+                      issues_by_path[path] = {
+                          "record_id": metadata["record_id"],
+                          "field": metadata["field"],
+                          "text": metadata["text"],
+                          "words": set(),
+                          "punctuation": set(),
+                      }
+
+                  issues_by_path[path]["punctuation"] = found_elements
+                  
+
           findings = []
-          
+
           for path, info in sorted(issues_by_path.items()):
               findings.append(
                   {
@@ -332,54 +361,65 @@ jobs:
                       "field": info["field"],
                       "text": info["text"],
                       "words": sorted(info["words"]),
+                      "punctuation": sorted(info["punctuation"]),
                   }
               )
-          
+
           with open("spellcheck-report.md", "w", encoding="utf-8") as report:
               report.write("# Tamriel Data Spellcheck Report\n\n")
-          
+
               report.write(
                   f"Checked **{len(spellcheck_strings)}** player-facing strings.\n\n"
               )
-          
+
               report.write(
                   f"Generated custom dictionary with "
                   f"**{len(dictionary_words)}** words.\n\n"
               )
-          
+
               report.write("## Checked Fields\n\n")
-          
+
               for field in sorted(SPELLCHECK_FIELDS):
                   report.write(f"- `{field}`\n")
-          
+
               report.write("\n")
-          
+
               if not findings:
                   report.write("No spelling issues found.\n")
               else:
                   report.write(f"## Findings ({len(findings)} entries)\n\n")
-          
+
                   for item in findings:
                       report.write(f"**Item ID:** `{item['record_id']}`\n\n")
-          
+
                       report.write(
                           f"**Field:** `{item['field']}`\n\n"
                       )
-          
-                      report.write("**Unknown words:**\n\n")
-          
-                      for word in item["words"]:
-                          report.write(f"- `{word}`\n")
-          
-                      report.write("\n")
-          
+
+                      if item["words"]:
+                          report.write("**Unknown words:**\n")
+
+                          for word in item["words"]:
+                              report.write(f"- `{word}`\n")
+
+                          report.write("\n")
+
+                      if item["punctuation"]:
+
+                          report.write("**Invalid punctuation:**\n")
+
+                          for word in item["punctuation"]:
+                              report.write(f"- `{word}`\n")
+
+                          report.write("\n")
+
                       report.write("```text\n")
                       report.write(item["text"][:5000])
                       report.write("\n```\n\n")
-          
+
           print(
               f"Spellchecked {len(spellcheck_strings)} strings. "
-              f"Found {len(findings)} entries with possible spelling issues."
+              f"Found {len(findings)} entries with possible spelling or punctuation issues."
           )
           PY
 
