@@ -51,13 +51,18 @@ jobs:
         run: |
           cat > spellcheck_json.py <<'PY'
           import json
+          import re
           import subprocess
           import tempfile
+          from collections import Counter
           from pathlib import Path
           
           JSON_FILE = "Tamriel_Data.json"
           
-          PLAYER_FACING_FIELDS = {
+          #
+          # Fields that should be spellchecked
+          #
+          SPELLCHECK_FIELDS = {
               "name",
               "text",
               "journal",
@@ -70,10 +75,33 @@ jobs:
               "note",
           }
           
-          with open(JSON_FILE, encoding="utf-8") as f:
-              data = json.load(f)
+          #
+          # Fields used for dictionary generation
+          #
+          DICTIONARY_FIELDS = {
+              "name",
+              "race",
+              "class",
+              "faction",
+              "region",
+              "topic",
+          }
           
-          strings = []
+          word_frequency = Counter()
+          dictionary_words = set()
+          
+          spellcheck_strings = []
+          
+          
+          def tokenize(text):
+              return re.findall(r"[A-Za-z][A-Za-z'-]*", text)
+          
+          
+          def collect_dictionary_words(text):
+              for word in tokenize(text):
+                  if len(word) >= 3:
+                      dictionary_words.add(word)
+                      word_frequency[word] += 1
           
           
           def walk(obj, path="", key=None):
@@ -87,60 +115,108 @@ jobs:
                       walk(v, f"{path}[{i}]", key)
           
               elif isinstance(obj, str):
-                  if key not in PLAYER_FACING_FIELDS:
-                      return
-          
                   text = obj.strip()
           
                   if len(text) < 3:
                       return
           
-                  strings.append((path, key, text))
+                  #
+                  # Build dictionary
+                  #
+                  if key in DICTIONARY_FIELDS:
+                      collect_dictionary_words(text)
           
+                  #
+                  # Gather strings to spellcheck
+                  #
+                  if key in SPELLCHECK_FIELDS:
+                      spellcheck_strings.append((path, key, text))
+          
+          
+          print("Loading JSON...")
+          
+          with open(JSON_FILE, encoding="utf-8") as f:
+              data = json.load(f)
           
           walk(data)
           
+          #
+          # Add frequently-occurring words from ALL checked text
+          #
+          for _, _, text in spellcheck_strings:
+              for word in tokenize(text):
+                  if len(word) >= 3:
+                      word_frequency[word] += 1
+          
+          #
+          # Whitelist common lore words that appear repeatedly.
+          # A typo that occurs only once won't be added.
+          #
+          FREQUENCY_THRESHOLD = 5
+          
+          for word, count in word_frequency.items():
+              if count >= FREQUENCY_THRESHOLD:
+                  dictionary_words.add(word)
+          
+          print(f"Generated dictionary with {len(dictionary_words)} words")
+          
+          dictionary_file = "tamriel-dictionary.txt"
+          
+          with open(dictionary_file, "w", encoding="utf-8") as f:
+              for word in sorted(dictionary_words):
+                  f.write(word + "\n")
+          
           findings = []
           
-          for path, key, text in strings:
+          for path, field, text in spellcheck_strings:
               with tempfile.NamedTemporaryFile(
                   mode="w",
-                  suffix=".txt",
                   encoding="utf-8",
+                  suffix=".txt",
                   delete=False,
               ) as tmp:
                   tmp.write(text)
-                  filename = tmp.name
+                  tmp_filename = tmp.name
           
               result = subprocess.run(
                   [
                       "cspell",
                       "--no-progress",
                       "--no-summary",
-                      filename,
+                      "--words",
+                      dictionary_file,
+                      tmp_filename,
                   ],
                   capture_output=True,
                   text=True,
               )
           
-              Path(filename).unlink(missing_ok=True)
+              Path(tmp_filename).unlink(missing_ok=True)
           
               if result.returncode != 0:
                   findings.append(
                       {
                           "path": path,
-                          "field": key,
+                          "field": field,
                           "text": text,
                           "output": result.stdout.strip(),
                       }
                   )
           
           with open("spellcheck-report.md", "w", encoding="utf-8") as report:
-              report.write("# Spellcheck Report\n\n")
+              report.write("# Tamriel Data Spellcheck Report\n\n")
+          
+              report.write(
+                  f"Checked **{len(spellcheck_strings)}** player-facing strings.\n\n"
+              )
+          
+              report.write(
+                  f"Generated custom dictionary with **{len(dictionary_words)}** lore-specific words.\n\n"
+              )
           
               report.write("## Checked Fields\n\n")
           
-              for field in sorted(PLAYER_FACING_FIELDS):
+              for field in sorted(SPELLCHECK_FIELDS):
                   report.write(f"- `{field}`\n")
           
               report.write("\n")
@@ -148,28 +224,28 @@ jobs:
               if not findings:
                   report.write("No spelling issues found.\n")
               else:
-                  report.write(
-                      f"Found {len(findings)} entries containing possible spelling issues.\n\n"
-                  )
+                  report.write(f"## Findings ({len(findings)} entries)\n\n")
           
                   for item in findings:
-                      report.write(f"## {item['path']}\n\n")
+                      report.write(f"### {item['path']}\n\n")
           
-                      report.write(f"**Field:** `{item['field']}`\n\n")
+                      report.write(
+                          f"**Field:** `{item['field']}`\n\n"
+                      )
           
-                      report.write("### Text\n\n")
+                      report.write("#### Text\n\n")
                       report.write("```text\n")
                       report.write(item["text"][:5000])
                       report.write("\n```\n\n")
           
-                      report.write("### CSpell Output\n\n")
+                      report.write("#### CSpell Output\n\n")
                       report.write("```\n")
                       report.write(item["output"])
                       report.write("\n```\n\n")
           
           print(
-              f"Checked {len(strings)} player-facing strings. "
-              f"Found {len(findings)} entries with potential spelling issues."
+              f"Spellchecked {len(spellcheck_strings)} strings. "
+              f"Found {len(findings)} possible issues."
           )
           PY
 
