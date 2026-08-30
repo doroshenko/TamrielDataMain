@@ -1,0 +1,185 @@
+name: Update Tamriel_Data dictionary
+
+on:
+  workflow_dispatch:
+
+jobs:
+  spellcheck:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            00 Data Files/Tamriel_Data.esm
+            00 Data Files/Tamriel_Data-dictionary.txt
+          sparse-checkout-cone-mode: false
+
+      - name: Verify Tamriel_Data.esm exists
+        run: |
+          test -f "00 Data Files/Tamriel_Data.esm"
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq unzip
+          npm install -g cspell
+
+      - name: Download latest tes3conv
+        run: |
+          curl -s \
+            https://api.github.com/repos/Greatness7/tes3conv/releases/latest \
+            > tes3conv-release.json
+
+          URL=$(jq -r '
+            .assets[]
+            | select(.name == "ubuntu-latest.zip")
+            | .browser_download_url
+          ' tes3conv-release.json)
+
+          echo "Downloading $URL"
+
+          curl -L "$URL" -o tes3conv.zip
+
+          unzip tes3conv.zip -d tes3conv
+
+          chmod +x tes3conv/tes3conv
+
+      - name: Convert ESM to JSON
+        run: |
+          ./tes3conv/tes3conv \
+            "00 Data Files/Tamriel_Data.esm" \
+            Tamriel_Data.json
+            
+      - name: Create updated spellcheck dictionary
+        run: |
+          cat > dictionary_update.py <<'PY'
+          import json
+          import re
+          import subprocess
+          from collections import Counter
+          
+          JSON_FILE = "Tamriel_Data.json"
+
+          #
+          # Fields used to build a persistent lore dictionary.
+          #
+          DICTIONARY_FIELDS = {
+              "name",
+              "race",
+              "class",
+              "faction",
+              "region",
+              "topic",
+              "text"
+          }
+
+          #
+          # Words appearing at least this many times are automatically
+          # added to the custom dictionary.
+          #
+          FREQUENCY_THRESHOLD = 1
+          
+          dictionary_words = set()
+          
+          def tokenize(text):
+              return re.findall(r"[A-Za-z0-9_À-ÿ]+", text)
+          
+          
+          def collect_dictionary_words(text):
+              for word in tokenize(text):
+                  if len(word) >= 3:
+                      dictionary_words.add(word)
+                      word_frequency[word] += 1
+          
+          
+          def walk(obj, path="", key=None, record_type=None, record_id=None):
+              if isinstance(obj, dict):
+                  current_record_type = record_type
+                  current_record_id = record_id
+          
+                  #
+                  # tes3conv records have type and id.
+                  #
+                  if "type" in obj and isinstance(obj["type"], str):
+                      current_record_type = obj["type"]
+          
+                  if "id" in obj and isinstance(obj["id"], str):
+                      current_record_id = obj["id"]
+          
+                  for k, v in obj.items():
+                      next_path = f"{path}.{k}" if path else k
+          
+                      walk(
+                          v,
+                          next_path,
+                          k,
+                          current_record_type,
+                          current_record_id,
+                      )
+          
+              elif isinstance(obj, list):
+                  for i, v in enumerate(obj):
+                      walk(
+                          v,
+                          f"{path}[{i}]",
+                          key,
+                          record_type,
+                          record_id,
+                      )
+          
+              elif isinstance(obj, str):
+                  text = obj.strip()
+          
+                  if len(text) < 3:
+                      return
+          
+                  #
+                  # Build dictionary from lore/proper-name fields, as well as every word in the text.
+                  #
+                  if key in DICTIONARY_FIELDS:
+                      collect_dictionary_words(text)          
+          
+          print("Loading JSON...")
+          
+          with open(JSON_FILE, encoding="utf-8") as f:
+              data = json.load(f)
+          
+          walk(data)
+          
+          #
+          # Learn common words from the spellchecked text itself.
+          #
+          for item in spellcheck_strings:
+              for word in tokenize(item["text"]):
+                  if len(word) >= 3:
+                      word_frequency[word] += 1
+          
+          #
+          # Add frequent words to dictionary.
+          #
+          for word, count in word_frequency.items():
+              if count >= FREQUENCY_THRESHOLD:
+                  dictionary_words.add(word)
+          
+          dictionary_file = "Tamriel_Data-dictionary.txt"
+          
+          with open(dictionary_file, "w", encoding="utf-8") as f:
+              for word in sorted(dictionary_words):
+                  f.write(word + "\n")
+          
+          print(
+              f"Created an updated dictionary with {len(dictionary_words)} words"
+          )
+          PY
+
+      - name: Run dictionary update
+        run: |
+          python3 dictionary_update.py
+
+      - name: Upload spellcheck report
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tamriel_Data-dictionary.txt
+          path: Tamriel_Data-dictionary.txt
