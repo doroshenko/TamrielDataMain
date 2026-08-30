@@ -1,0 +1,154 @@
+name: Spellcheck Tamriel_Data
+
+on:
+  workflow_dispatch:
+
+jobs:
+  spellcheck:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verify Tamriel_Data.esm exists
+        run: |
+          test -f Tamriel_Data.esm || {
+            echo "Tamriel_Data.esm not found in repository root"
+            exit 1
+          }
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq unzip
+          npm install -g cspell
+
+      - name: Download latest tes3conv
+        run: |
+          curl -s \
+            https://api.github.com/repos/Greatness7/tes3conv/releases/latest \
+            > tes3conv-release.json
+
+          URL=$(jq -r '
+            .assets[]
+            | select(.name == "ubuntu-latest.zip")
+            | .browser_download_url
+          ' tes3conv-release.json)
+
+          echo "Downloading $URL"
+
+          curl -L "$URL" -o tes3conv.zip
+
+          unzip tes3conv.zip -d tes3conv
+
+          chmod +x tes3conv/tes3conv
+
+      - name: Convert ESM to JSON
+        run: |
+          ./tes3conv/tes3conv \
+            Tamriel_Data.esm \
+            Tamriel_Data.json
+
+      - name: Create spellcheck script
+        run: |
+          cat > spellcheck_json.py <<'PY'
+          import json
+          import subprocess
+          import tempfile
+          from pathlib import Path
+
+          JSON_FILE = "Tamriel_Data.json"
+
+          with open(JSON_FILE, encoding="utf-8") as f:
+              data = json.load(f)
+
+          strings = []
+
+          def walk(obj, path=""):
+              if isinstance(obj, dict):
+                  for key, value in obj.items():
+                      next_path = f"{path}.{key}" if path else key
+                      walk(value, next_path)
+
+              elif isinstance(obj, list):
+                  for index, value in enumerate(obj):
+                      walk(value, f"{path}[{index}]")
+
+              elif isinstance(obj, str):
+                  text = obj.strip()
+
+                  if len(text) < 3:
+                      return
+
+                  strings.append((path, text))
+
+          walk(data)
+
+          findings = []
+
+          for path, text in strings:
+              with tempfile.NamedTemporaryFile(
+                  mode="w",
+                  suffix=".txt",
+                  encoding="utf-8",
+                  delete=False
+              ) as tmp:
+                  tmp.write(text)
+                  filename = tmp.name
+
+              result = subprocess.run(
+                  [
+                      "cspell",
+                      "--no-progress",
+                      "--no-summary",
+                      filename,
+                  ],
+                  capture_output=True,
+                  text=True
+              )
+
+              Path(filename).unlink(missing_ok=True)
+
+              if result.returncode != 0:
+                  findings.append({
+                      "path": path,
+                      "text": text,
+                      "output": result.stdout.strip()
+                  })
+
+          with open("spellcheck-report.md", "w", encoding="utf-8") as report:
+              report.write("# Spellcheck Report\n\n")
+
+              if not findings:
+                  report.write("No spelling issues found.\n")
+              else:
+                  report.write(
+                      f"Found {len(findings)} strings containing possible spelling issues.\n\n"
+                  )
+
+                  for item in findings:
+                      report.write(f"## {item['path']}\n\n")
+
+                      report.write("### Text\n\n")
+                      report.write("```text\n")
+                      report.write(item["text"][:5000])
+                      report.write("\n```\n\n")
+
+                      report.write("### CSpell Output\n\n")
+                      report.write("```\n")
+                      report.write(item["output"])
+                      report.write("\n```\n\n")
+
+          print(f"Found {len(findings)} entries with possible spelling issues.")
+          PY
+
+      - name: Run spellcheck
+        run: |
+          python3 spellcheck_json.py
+
+      - name: Upload spellcheck report
+        uses: actions/upload-artifact@v4
+        with:
+          name: spellcheck-report
+          path: spellcheck-report.md
