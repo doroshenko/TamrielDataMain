@@ -9,7 +9,11 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            "00 Data Files/Tamriel_Data.esm"
+          sparse-checkout-cone-mode: false
 
       - name: Verify Tamriel_Data.esm exists
         run: |
@@ -46,6 +50,22 @@ jobs:
           ./tes3conv/tes3conv \
             "00 Data Files/Tamriel_Data.esm" \
             Tamriel_Data.json
+
+      - name: Create spellcheck config
+        run: |
+          cat > cspell.json <<'EOF'
+          {
+            "dictionaries": ["tamriel-dictionary"],
+
+            "dictionaryDefinitions": [
+                  {
+                      "name": "tamriel-dictionary",
+                      "path": "tamriel-dictionary.txt",
+                      "addWords": true
+                  }
+              ]
+          }
+          EOF
             
       - name: Create spellcheck script
         run: |
