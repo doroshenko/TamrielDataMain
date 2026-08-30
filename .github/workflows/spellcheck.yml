@@ -11,8 +11,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
-          sparse-checkout: |
-            "00 Data Files/Tamriel_Data.esm"
+          path: 00 Data Files
+          sparse-checkout: Tamriel_Data.esm
           sparse-checkout-cone-mode: false
 
       - name: Verify Tamriel_Data.esm exists
