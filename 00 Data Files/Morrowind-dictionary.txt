@@ -1,5 +1,4 @@
 000
-000000
 100
 1000
 10000
@@ -12,18 +11,15 @@
 150
 200
 2000
-240
 24th
 250
 2500
-253
 2920
 2nd
 300
 3000
 30000
 360
-377
 3rd
 400
 426
@@ -31,7 +27,6 @@
 5000
 6000
 637th
-640F0F
 678th
 6th
 738th
@@ -42,7 +37,6 @@
 AAAIIEE
 ABCs
 AGAIN
-ALIGN
 ALL
 ALMSIVI
 ALREADY
@@ -1344,10 +1338,8 @@ Buying
 Buzga
 CARE
 CASTING
-CENTER
 CHOOOO
 CLAVIDES
-COLOR
 Cabal
 Cabbage
 Cabin
@@ -1400,7 +1392,6 @@ Caravaner
 Caravaners
 Carbo
 Carcass
-Cards
 Care
 Carecalmo
 Careful
@@ -1792,7 +1783,6 @@ Cyrodil
 Cyrodilic
 DARK
 DEAD
-DIV
 DON
 DOUBLED
 DRY
@@ -2599,8 +2589,6 @@ Eydis
 Eye
 Eyeball
 Eyes
-FACE
-FONT
 FOR
 FROM
 Fabricant
@@ -3481,7 +3469,6 @@ Gyrnasse
 Gysilla
 HAD
 HAVE
-HEIGHT
 HERE
 Haakon
 Haballa
@@ -3846,7 +3833,6 @@ Hypothetical
 Hyring
 IACHILLA
 III
-IMG
 IMPERIAL
 INVOKE
 INZOLIAH
@@ -4293,7 +4279,6 @@ Kvata
 Kwama
 Kynareth
 Kyne
-LEFT
 LET
 LOOKED
 LORD
@@ -5076,7 +5061,6 @@ Moorling
 Mora
 Moraelyn
 Morag
-MoragTong
 Moran
 Moranarg
 Morbash
@@ -6414,12 +6398,10 @@ SAW
 SAY
 SCHIAVAS
 SHE
-SIZE
 SLEEP
 SNG
 SPEAK
 SPELL
-SRC
 STILL
 Saber
 Sabinus
@@ -8378,7 +8360,6 @@ WARNING
 WAS
 WHAT
 WHERE
-WIDTH
 WILL
 WITH
 WLW
@@ -16111,7 +16092,6 @@ testing
 tests
 text
 texture
-tga
 than
 thank
 thanked

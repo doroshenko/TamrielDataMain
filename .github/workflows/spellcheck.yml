@@ -130,7 +130,8 @@ jobs:
 
 
           def tokenize(text):
-              return re.findall(r"[A-Za-z0-9_À-ÿ]+", text)
+              unwrap = re.sub("<[^<]+?>", "", text)
+              return re.findall(r"[A-Za-z0-9_À-ÿ]+", unwrap)
 
 
           def collect_dictionary_words(text):
@@ -250,7 +251,9 @@ jobs:
           for item in spellcheck_strings:
               start_line = current_line
 
-              text_lines = item["text"].splitlines()
+              unwrap = re.sub("<[^<]+?>", "", item["text"])
+
+              text_lines = unwrap.splitlines()
 
               if not text_lines:
                   text_lines = [""]

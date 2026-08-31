@@ -78,7 +78,8 @@ jobs:
           dictionary_words = set()
           
           def tokenize(text):
-              return re.findall(r"[A-Za-z0-9_À-ÿ]+", text)
+              unwrap = re.sub("<[^<]+?>", "", text)
+              return re.findall(r"[A-Za-z0-9_À-ÿ]+", unwrap)
           
           
           def collect_dictionary_words(text):

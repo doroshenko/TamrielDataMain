@@ -1,38 +1,23 @@
 000
-000000
-003300
 100
 1000
 1024
 110
 11th
-120
 128
-140
 150
-168
-189
 18th
 1st
 200
-220
 23rd
-240
-242
 243
-248
 24th
 256
-265
 266
 288
 289
-290
 2920
 2nd
-300
-348
-377
 389
 391
 396
@@ -42,25 +27,19 @@
 3rd
 400
 4000
-420
 421
 426
 427
 500
 5000
-500000
-500F0F
 512
 5th
 622
-640F0F
 68500
 820
-821E00
 8th
 980
 9th
-AA0000
 AAAIIEE
 ABDICATES
 ABECEAN
@@ -72,7 +51,6 @@ AGEA
 AID
 AKAVIR
 ALDUIN
-ALIGN
 ALL
 ALMSIVI
 ALONG
@@ -969,14 +947,12 @@ CASIK
 CASIMOR
 CASINO
 CAUSES
-CENTER
 CHIEFTAIN
 CHOOOO
 CIRCLES
 CITY
 CMC
 COLONY
-COLOR
 COMMENTARY
 COMMOTION
 COMPANY
@@ -1499,7 +1475,6 @@ DEVIL
 DIBELLANS
 DISARRAY
 DISEASE
-DIV
 DONE
 DOPPELGANGER
 DOUBTS
@@ -1604,8 +1579,6 @@ Denial
 Dephilti
 Deposit
 Deposition
-Deprecated
-Depreciated
 Descent
 Desert
 Deshaan
@@ -2076,7 +2049,6 @@ Eyed
 Eyes
 Eyestar
 Eyrfin
-FACE
 FAME
 FASHION
 FIGHT
@@ -2085,7 +2057,6 @@ FIRES
 FIRST
 FLASH
 FLAWS
-FONT
 FOOD
 FOR
 FOREIGN
@@ -2677,7 +2648,6 @@ HEAD
 HEADLINE
 HEART
 HEATH
-HEIGHT
 HELSETH
 HERE
 HIGH
@@ -3019,7 +2989,6 @@ IAS
 IBBI
 ICY
 III
-IMG
 IMPERIAL
 IMPERII
 IMPORTS
@@ -3416,7 +3385,6 @@ Kynval
 LAID
 LEADER
 LEAVES
-LEFT
 LEGION
 LET
 LEX
@@ -4672,7 +4640,6 @@ Pitfalls
 Pitiless
 Pity
 Place
-Placeholder
 Placemat
 Plague
 Plaguebearer
@@ -4900,7 +4867,6 @@ REVIEWED
 REVOLT
 RHC
 RIGGED
-RIGHT
 RISE
 RISING
 RIVERKEEP
@@ -5245,7 +5211,6 @@ SHUTS
 SHotN
 SILENUS
 SINKS
-SIZE
 SKY
 SKYRIM
 SLAIN
@@ -5257,7 +5222,6 @@ SOLDIER
 SOLSTHEIM
 SONG
 SOULREST
-SRC
 STANDING
 STANDOFF
 STENDARR
@@ -5601,7 +5565,6 @@ Sifting
 Sigh
 Sight
 Sigil
-Sign
 Signatures
 Signed
 Signet
@@ -5663,8 +5626,6 @@ Skold
 Skooma
 Skull
 Sky
-Sky_Sc_LetKyneGuide
-Sky_Sc_SpeakTheseWords
 Skyburial
 Skylamp
 Skyrender
@@ -6078,8 +6039,6 @@ TRENDSETTER
 TROOPS
 TROUBLE
 TR_Sound_AmbientInsects
-TR_bellman_512_256
-TR_crest
 TSAESCI
 TWO
 T_Aka_Tsaesci
@@ -6415,7 +6374,6 @@ Tomaril
 Tomato
 Tomb
 Tombs
-Tome
 Tomorrow
 Tong
 Tongs
@@ -6809,7 +6767,6 @@ WAR
 WESTERN
 WHAT
 WHITE
-WIDTH
 WILL
 WINS
 WITNESSED
@@ -9076,7 +9033,6 @@ dawns
 day
 daylight
 days
-dds
 dead
 deadly
 deaf
@@ -9225,7 +9181,6 @@ deposit
 deposited
 deposits
 depravity
-deprecated
 depth
 depths
 derided
@@ -9627,7 +9582,6 @@ dynasty
 each
 eager
 eagerly
-eagle
 ear
 earlier
 earliest
@@ -11091,7 +11045,6 @@ however
 howl
 howling
 howls
-hr_compass_512_256
 huge
 hugged
 hull
@@ -12863,7 +12816,6 @@ paved
 pay
 paying
 payment
-pc_abmonitor
 peace
 peaceable
 peaceful
@@ -12940,7 +12892,6 @@ persuasion
 persuasive
 peruse
 perverse
-peryiton_peryiton
 pestilence
 pet
 petals
@@ -15368,7 +15319,6 @@ testing
 tests
 text
 texts
-tga
 than
 thane
 thanes
@@ -15564,7 +15514,6 @@ townsfolk
 toxic
 toy
 toys
-tr_echo_512_256
 trace
 traced
 traces
