@@ -301,13 +301,15 @@ jobs:
           # payload.txt:123:5 - Unknown word (Foobar)
           #
           line_pattern = re.compile(
-              r"(?:stdin|<stdin>|payload.txt):(\d+):(\d+).*?Unknown word\s+\(([^)]+)\)",
+              r"(?:stdin|<stdin>|payload.txt):(\d+):(\d+).*?Unknown word\s+\(([^)]+)\)(?:\s+fix:\s+\(([^)]+)\))?",
               re.IGNORECASE,
           )
 
           issues_by_path = {}
 
           for line in result.stdout.splitlines():
+              print (line)
+
               match = line_pattern.search(line)
 
               if not match:
@@ -329,7 +331,8 @@ jobs:
                               "punctuation": set(),
                           }
 
-                      issues_by_path[path]["words"].add(unknown_word)
+                      issues_by_path[path]["words"].add((unknown_word, match.group(4)))
+                      
                       break
 
           print("Checking punctuation...")
@@ -409,7 +412,10 @@ jobs:
                           report.write("**Unknown words:**\n")
 
                           for word in item["words"]:
-                              report.write(f"- `{word}`\n")
+                              if word[1]:
+                                  report.write(f"- `{word[0]}` -> `{word[1]}`\n")
+                              else:
+                                  report.write(f"- `{word[0]}`\n")
 
                           report.write("\n")
 
