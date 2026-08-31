@@ -56,19 +56,24 @@ jobs:
         run: |
           cat > cspell.json <<'EOF'
           {
-            "dictionaries": ["persistent-dictionary", "temp-dictionary"],
+            "dictionaries": ["vanilla", "TD", "temp"],
 
             "dictionaryDefinitions": [
-                  {
-                      "name": "temp-dictionary",
-                      "path": "temp-dictionary.txt",
-                      "addWords": true
-                  },
-                  {
-                      "name": "persistent-dictionary",
-                      "path": "00 Data Files/Tamriel_Data-dictionary.txt",
-                      "addWords": true
-                  }
+                {
+                  "name": "vanilla",
+                  "path": "00 Data Files/Morrowind-dictionary.txt",
+                  "addWords": true
+                },
+                {
+                  "name": "TD",
+                  "path": "00 Data Files/Tamriel_Data-dictionary.txt",
+                  "addWords": true
+                },
+                {
+                  "name": "temp",
+                  "path": "temp-dictionary.txt",
+                  "addWords": true
+                }
               ]
           }
           EOF
