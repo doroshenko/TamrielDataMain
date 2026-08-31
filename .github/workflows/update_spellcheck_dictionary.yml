@@ -14,6 +14,7 @@ jobs:
           sparse-checkout: |
             00 Data Files/Tamriel_Data.esm
             00 Data Files/Tamriel_Data-dictionary.txt
+            00 Data Files/Morrowind-dictionary.txt
           sparse-checkout-cone-mode: false
 
       - name: Verify Tamriel_Data.esm exists
@@ -24,6 +25,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y jq unzip
+          npm install -g cspell
 
       - name: Download latest tes3conv
         run: |
@@ -58,11 +60,26 @@ jobs:
           import re
           import subprocess
           from collections import Counter
-          
+
           JSON_FILE = "Tamriel_Data.json"
 
           #
-          # Fields used to build a persistent lore dictionary.
+          # Types that contain player-visible text and should be spellchecked.
+          #
+          PLAYER_FACING_RECORDS = {
+              "Book",
+              "DialogueInfo",
+          }
+
+          #
+          # Fields that contain player-visible text and should be spellchecked.
+          #
+          SPELLCHECK_FIELDS = {
+              "text",
+          }
+
+          #
+          # Fields used to build a custom lore dictionary.
           #
           DICTIONARY_FIELDS = {
               "name",
@@ -71,41 +88,49 @@ jobs:
               "faction",
               "region",
               "topic",
-              "text"
+          # "text"
           }
+
+          #
+          # Words appearing at least this many times are automatically
+          # added to the custom dictionary.
+          #
+          FREQUENCY_THRESHOLD = 5
 
           word_frequency = Counter()
           dictionary_words = set()
-          
+          spellcheck_strings = []
+
+
           def tokenize(text):
               unwrap = re.sub("<[^<]+?>", "", text)
               return re.findall(r"[A-Za-z0-9_À-ÿ]+", unwrap)
-          
-          
+
+
           def collect_dictionary_words(text):
               for word in tokenize(text):
                   if len(word) >= 3:
                       dictionary_words.add(word)
                       word_frequency[word] += 1
-          
-          
+
+
           def walk(obj, path="", key=None, record_type=None, record_id=None):
               if isinstance(obj, dict):
                   current_record_type = record_type
                   current_record_id = record_id
-          
+
                   #
                   # tes3conv records have type and id.
                   #
                   if "type" in obj and isinstance(obj["type"], str):
                       current_record_type = obj["type"]
-          
+
                   if "id" in obj and isinstance(obj["id"], str):
                       current_record_id = obj["id"]
-          
+
                   for k, v in obj.items():
                       next_path = f"{path}.{k}" if path else k
-          
+
                       walk(
                           v,
                           next_path,
@@ -113,7 +138,7 @@ jobs:
                           current_record_type,
                           current_record_id,
                       )
-          
+
               elif isinstance(obj, list):
                   for i, v in enumerate(obj):
                       walk(
@@ -123,32 +148,154 @@ jobs:
                           record_type,
                           record_id,
                       )
-          
+
               elif isinstance(obj, str):
                   text = obj.strip()
-          
+
                   if len(text) < 3:
                       return
-          
+
                   #
-                  # Build dictionary from lore/proper-name fields, as well as every word in the text.
+                  # Build dictionary from lore/proper-name fields.
                   #
                   if key in DICTIONARY_FIELDS:
-                      collect_dictionary_words(text)          
-          
+                      collect_dictionary_words(text)
+
+                  #
+                  # Only spellcheck player-visible fields belonging
+                  # to player-facing records.
+                  #
+                  if (
+                      record_type in PLAYER_FACING_RECORDS
+                      and key in SPELLCHECK_FIELDS
+                  ):
+                      spellcheck_strings.append(
+                          {
+                              "path": path,
+                              "record_type": record_type,
+                              "record_id": record_id,
+                              "field": key,
+                              "text": text,
+                          }
+                      )
+
+
           print("Loading JSON...")
-          
+
           with open(JSON_FILE, encoding="utf-8") as f:
               data = json.load(f)
-          
+
           walk(data)
-          
-          dictionary_file = "Tamriel_Data-dictionary.txt"
-          
+
+          #
+          # Learn common words from the spellchecked text itself.
+          #
+          for item in spellcheck_strings:
+              for word in tokenize(item["text"]):
+                  if len(word) >= 3:
+                      word_frequency[word] += 1
+
+          #
+          # Add frequent words to dictionary.
+          #
+          for word, count in word_frequency.items():
+              if count >= FREQUENCY_THRESHOLD:
+                  dictionary_words.add(word)
+
+          dictionary_file = "temp-dictionary.txt"
+
           with open(dictionary_file, "w", encoding="utf-8") as f:
               for word in sorted(dictionary_words):
                   f.write(word + "\n")
-          
+
+          print(
+              f"Prepared {len(spellcheck_strings)} strings and "
+              f"{len(dictionary_words)} dictionary words"
+          )
+
+          #
+          # Build a single payload for cspell.
+          #
+          payload_lines = []
+          line_map = {}
+
+          current_line = 1
+
+          for item in spellcheck_strings:
+              start_line = current_line
+
+              unwrap = re.sub("<[^<]+?>", "", item["text"])
+
+              text_lines = unwrap.splitlines()
+
+              if not text_lines:
+                  text_lines = [""]
+
+              payload_lines.extend(text_lines)
+
+              current_line += len(text_lines)
+
+              end_line = current_line - 1
+
+              line_map[(start_line, end_line)] = item
+
+              #
+              # Separator line between entries.
+              #
+              payload_lines.append("")
+              current_line += 1
+
+          payload = "\n".join(payload_lines)
+
+          with open("payload.txt", "w", encoding="utf-8") as f:
+              f.write(payload)
+
+          print("Running cspell...")
+
+          result = subprocess.run(
+              [
+                  "cspell",
+                  "--no-progress",
+                  "--no-summary",
+                  "payload.txt",
+              ],
+              capture_output=True,
+              text=True,
+          )
+
+          #
+          # Parse cspell output.
+          #
+          #
+          # Expected formats include:
+          # stdin:123:5 - Unknown word (Foobar)
+          # <stdin>:123:5 - Unknown word (Foobar)
+          # payload.txt:123:5 - Unknown word (Foobar)
+          #
+          line_pattern = re.compile(
+              r"(?:stdin|<stdin>|payload.txt):(\d+):(\d+).*?Unknown word\s+\(([^)]+)\)(?:\s+fix:\s+\(([^)]+)\))?",
+              re.IGNORECASE,
+          )
+
+          issues_by_path = {}
+
+          for line in result.stdout.splitlines():
+              print (line)
+
+              match = line_pattern.search(line)
+
+              if not match:
+                  continue
+
+              unknown_word = match.group(3)
+
+              dictionary_words.add(unknown_word)
+              
+
+          with open("Tamriel_Data-dictionary.txt", "w", encoding="utf-8") as f:
+            for word in sorted(dictionary_words):
+              f.write(word + "\n")
+                  
           print(
               f"Created an updated dictionary with {len(dictionary_words)} words"
           )
