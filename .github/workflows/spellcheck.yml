@@ -14,6 +14,7 @@ jobs:
           sparse-checkout: |
             00 Data Files/Tamriel_Data.esm
             00 Data Files/Tamriel_Data-dictionary.txt
+            00 Data Files/Morrowind-dictionary.txt
           sparse-checkout-cone-mode: false
 
       - name: Verify Tamriel_Data.esm exists
